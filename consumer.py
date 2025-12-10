@@ -1,0 +1,53 @@
+from asyncio import sleep, EventLoop
+from json import dumps
+from sqlite3 import IntegrityError
+
+from data import redis_client, cursor, connection, stream
+
+duration = 2
+
+
+async def main():
+    while True:
+        stream_data = redis_client.xread(streams={stream: '10'}, block=2000)
+        for _, requests in stream_data:
+            for key, payload in requests:
+                redis_client.xack(stream, 0, key)
+                email = payload.get(b'email')
+                if user_exists(email):
+                    print(f"Request {key} is a duplicate. Dropping. [ {email} ]")
+                    delete_item(stream, key, True)
+                    continue
+                try:
+                    create_user(payload)
+                except IntegrityError:
+                    print(f"{email} is a duplicate and has not been caught somehow! Deleting.")
+                    delete_item(stream, key)
+        print(f"Sleeping for {duration}s.")
+    await sleep(duration)
+
+
+def user_exists(email: str) -> bool:
+    [count] = cursor.execute('select count(1) as count from users where email = ?', (email,)).fetchone()
+    return count > 0
+
+
+def create_user(data):
+    email = data.get(b"email")
+    password = data.get(b"password")
+    cursor.execute ("insert into users(email, password) values(?, ?)", (email, password))
+    connection.commit()
+    print(f"Created user for {email}")
+
+
+def delete_item(stream: str, _id: str, post_insert=False) -> None:
+    if post_insert:
+        print(f"Consumed {_id} for user creation. Deleting from stream")
+    else:
+        print(f"Deleting {_id} from stream")
+    redis_client.xdel(stream, _id)
+
+
+if __name__ == "__main__":
+    loop = EventLoop()
+    loop.run_until_complete(main())
