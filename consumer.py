@@ -1,5 +1,6 @@
 from asyncio import sleep, EventLoop
 from sqlite3 import IntegrityError
+from datetime import UTC, datetime
 
 from data import create_user, redis_client, stream, user_exists
 
@@ -7,7 +8,7 @@ duration = 2
 
 async def main():
     while True:
-        stream_data = await redis_client.xread(streams={stream: '10'}, block=2000)
+        stream_data = redis_client.xread(streams={stream: '10'}, block=2000)
         for _, requests in stream_data:
             for key, payload in requests:
                 email = payload.get(b'email')
@@ -20,7 +21,7 @@ async def main():
                 except IntegrityError:
                     print(f"{email} is a duplicate and has not been caught somehow! Deleting.")
                     delete_item(stream, key)
-        print(f"Sleeping for {duration}s.")
+        print(f"[{datetime.now(UTC)}] - Sleeping for {duration}s.")
     await sleep(duration)
 
 
