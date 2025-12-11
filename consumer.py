@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from data import create_user, redis_client, stream, user_exists
 
-duration = 2
+duration = 30
 
 async def main():
     while True:
@@ -22,7 +22,7 @@ async def main():
                     print(f"{email} is a duplicate and has not been caught somehow! Deleting.")
                     delete_item(stream, key)
         print(f"[{datetime.now(UTC)}] - Sleeping for {duration}s.")
-    await sleep(duration)
+        await sleep(duration)
 
 
 def delete_item(stream: str, _id: str, post_insert=False) -> None:
